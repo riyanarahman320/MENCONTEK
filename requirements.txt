@@ -1,8 +1,4 @@
-# Beri tahu pip untuk mencari paket torch di repositori CPU PyTorch
---index-url https://download.pytorch.org/whl/cpu
-
-# Sekarang daftarkan paket Anda. 
-# torch dan torchvision akan diambil dari index CPU di atas.
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi
 uvicorn
 gunicorn
