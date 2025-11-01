@@ -5,4 +5,5 @@ gunicorn
 python-multipart
 torch
 torchvision
-ultralytics
+# Hapus 'ultralytics' di atas dan ganti dengan baris di bawah ini:
+git+https://github.com/iMoonLab/yolov13.git
