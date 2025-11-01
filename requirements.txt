@@ -3,7 +3,7 @@ fastapi
 uvicorn
 gunicorn
 python-multipart
+huggingface_hub
 torch
 torchvision
-# Hapus 'ultralytics' di atas dan ganti dengan baris di bawah ini:
 git+https://github.com/iMoonLab/yolov13.git
