@@ -1,47 +1,72 @@
-import cv2
+import io
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware  # <-- PENTING untuk JavaScript
 from ultralytics import YOLO
+from PIL import Image
+import json
+import os
 
-# Muat model 'best.pt' yang sudah Anda latih
-model = YOLO('contek.pt')
+# Muat model Anda
+# Pastikan 'contek.pt' ada di direktori yang sama
+try:
+    model = YOLO("contek.pt")
+    print("Model 'contek.pt' berhasil dimuat.")
+except Exception as e:
+    print(f"Error memuat model: {e}")
+    model = None
 
-# Inisialisasi webcam
-# Angka 0 biasanya adalah webcam bawaan (built-in)
-# Jika Anda punya banyak kamera, Anda bisa coba ganti ke 1, 2, dst.
-cap = cv2.VideoCapture(0)
+# Buat aplikasi FastAPI
+app = FastAPI(title="YOLOv13 Detection API")
 
-# Periksa apakah webcam berhasil dibuka
-if not cap.isOpened():
-    print("Error: Tidak bisa membuka kamera.")
-    exit()
+# --- Konfigurasi CORS ---
+# Ini mengizinkan browser (dari domain manapun) untuk mengakses API Anda.
+origins = ["*"] 
 
-# Loop untuk membaca frame dari kamera secara terus menerus
-while True:
-    # Baca satu frame dari webcam
-    ret, frame = cap.read()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Izinkan semua method (GET, POST, dll)
+    allow_headers=["*"],  # Izinkan semua header
+)
+# --- Selesai Konfigurasi CORS ---
 
-    # Jika frame tidak berhasil dibaca (misal: kamera dicabut)
-    if not ret:
-        print("Error: Tidak bisa membaca frame.")
-        break
 
-    # Jalankan deteksi YOLO pada frame
-    # 'stream=True' disarankan untuk video agar lebih efisien
-    results = model(frame, stream=True)
+@app.get("/")
+def read_root():
+    return {"message": "Selamat datang di API YOLOv13. Gunakan endpoint /detect."}
 
-    # Proses hasil deteksi
-    for r in results:
-        # 'plot()' adalah fungsi bawaan ultralytics untuk menggambar
-        # semua kotak pembatas (bounding boxes) dan label pada frame
-        annotated_frame = r.plot()
+@app.post("/detect")
+async def detect_objects(file: UploadFile = File(...)):
+    """
+    Menerima file gambar (dari webcam), menjalankan deteksi, 
+    dan mengembalikan hasil dalam format JSON.
+    """
+    if not model:
+        return {"error": "Model tidak berhasil dimuat, periksa log server."}, 500
 
-        # Tampilkan frame yang sudah diberi anotasi
-        cv2.imshow('Deteksi Mencontek (Tekan q untuk keluar)', annotated_frame)
+    contents = await file.read()
+    
+    try:
+        image = Image.open(io.BytesIO(contents))
+    except Exception as e:
+        return {"error": f"Tidak dapat membaca file gambar: {e}"}
 
-    # Cek apakah pengguna menekan tombol 'q' untuk keluar
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    # Jalankan deteksi
+    results = model(image, verbose=False) 
+    result = results[0]
 
-# Setelah loop selesai, lepaskan webcam
-cap.release()
-# Tutup semua jendela OpenCV
-cv2.destroyAllWindows()
+    # Format output menjadi JSON yang rapi
+    output_boxes = []
+    for box in result.boxes:
+        output_boxes.append({
+            "class_id": int(box.cls),
+            "class_name": model.names[int(box.cls)],
+            "confidence": float(box.conf),
+            "coordinates": [float(coord) for coord in box.xyxy[0]] # [x1, y1, x2, y2]
+        })
+
+    return {
+        "filename": file.filename,
+        "detections": output_boxes
+    }
